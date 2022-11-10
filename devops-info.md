@@ -60,6 +60,7 @@ DevOps-related info
 - We’ll manage that with groups of users.
 - Change user group = sudo usermod -g <groupname> <username>
 - Change ownership of files = sudo chown / sudo chgrp
+- When we add a user to a remote server, we'll need to add the public key to the user's ```/home/<username>/.ssh/authorized_keys``` file in order for the user to be able to ssh to the machine as it's own user and not as root
 
 ---
 
@@ -91,4 +92,47 @@ DevOps-related info
 
 ## Build Tools
 - We need to build our code to a single artifact and then we can move it and deploy to our servers from an artifact repo
-- When creating Maven/Gradle project in java, the build tool will download dependencies for the project based on requirements files in it
+- When creating Maven/Gradle project in java, the build tool will download dependencies for the project based on requirements files in it. If we need more dependencies, we'll add them to that file (for example pom.xml for maven projects)
+- After getting the artifact to our servers - we can run ```java -jar <artifact_path>``` in order to run the app
+
+---
+
+## Artifact Repository Manager (Nexus examples)
+- Artifacts are apps built into a single file (different formats) which can be shared. An artifact repo is where these files can be shared
+- An artifact repo is file format specific, so if we're developing alot of technologies we need separate repos. That's why we need an artifact repository manager, like Nexus or JFrog
+- An example for a public repo manager is ```Maven Central Repository```, Which stores jar files for the public's use when developing with Java. Also ```npm``` for JS
+- Repo managers have a flexible REST API which is good for our CI/CD pipeline integration when wanting to upload/download an artifact
+- Repo managers have cleanup policies for the repo in order to save storage
+- When extracting Nexus download there are 2 dirs: ```nexus``` dir for the runtime of Nexus and ```sonatype-work/nexus``` for the configurations and data (the uploaded files)
+- There are 3 types of repositories in Nexus: **proxy** - proxies the main repo specified and caches data. **hosted** - primary storage for the company's artifacts. **group** - can group together proxy and hosted repos for the developers to use only 1 url instead of accessing all of the repos for their dependencies
+- The connection to Nexus will be added in the config files of the project ```build.gradle```/```pom.xml```. Then we can run a build: ```gradlew build```/```mvn package``` and we will have the artifact created. After that we will publish with ```gradlew publish```/```mvn deploy``` to publish to our Nexus repo
+- Note Maven project credentials file ```settings.xml``` should be created under .m2 folder
+- Nexus API query example: ```url -u user:password -X GET 'http://<nexusIP>:<nexusPort>/service/rest/v1/repositories```
+- When creating a new repo we assign it to a blob store that we can create depending on our storage
+- The components in each repo includes 1 or more assets. **Docker assets are called layers and can be shared through images (components)**
+- Cleanup policies for the repos does **not** delete the blob storage of the components until compact-blob task is run
+
+---
+
+## Containers (Docker examples)
+- A container is a portable artifact which has the app's configs and dependencies included. The container has it's own isolated environment so it doesn't matter on which OS it is running
+- Containers are stored in a container repo (private/public). Default is Dockerhub
+- Containers consists of layers, when the base layer is most of the times a linux OS base image (small sized)
+- Containers use the host's kernel and only virtualizes the application layer of the OS. VM's boots up it's own OS kernel
+- ```docker logs <containerId>``` - outputs the log of the container
+- ```docker exec -it <containerId>``` - access the container terminal
+- ```docker network ls``` - lists all of the networks for connections between containers
+- docker compose takes care of creating/deleting the common network for our containers when running ```docker-compose up/down```
+- We can set env variables either in the Dockerfile or as external env variables from the command line. Depending on whether they change from run to run or stay fixed
+- ```RUN``` lets us run linux commands in the container
+- ```CMD``` creates an entrypoint for the container
+- ```docker build -t my-app:1.0 .``` - builds a tagged image based on Dockerfile
+- For CI integration, we will commit our code **with the Dockerfile** and then the CI tool will automatically build the image and push it to a remote repo
+- In AWS ECR the repositories are per-image
+- Pushing an image to ECR: 1. login to remote repo account using ```docker login``` (for aws connection first set up the configuration with ```aws config```) 2. build the image locally. 3. tag the image using the registry domain, image name, and tag: ```docker tag my-app:latest <registry_url>/my-app:latest```. 4. push to remote: ```docker push <registry_url>/my-app:latest```
+- Deploying the application in the server: 1. login to remote repo account using ```docker login```. 2. configure where the image resides on the remote server in order for the appropriate service to be able to pull it.
+- Volumes: there are 3 types of docker volumes: 1. specifying a directory which is available on the host machine and connecting it to a path in the container. 2. anonymous volumes. 3. named volumes (this way docker is handling the storage on our host): ```<volume-name>:<path-in-container>```. Windows: **C:\ProgramData\docker\volumes** Linux/Mac: **/var/lib/docker/volumes**
+- When running for example a Nexus container, it already creates a nexus user for us and runs nexus with this user out of the box, so we don't need to take care of these aspects
+- ```docker inspect <volume name>``` - details about the volumes and it's physical location on the server
+
+---
