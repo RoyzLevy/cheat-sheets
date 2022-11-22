@@ -132,7 +132,39 @@ DevOps-related info
 - Pushing an image to ECR: 1. login to remote repo account using ```docker login``` (for aws connection first set up the configuration with ```aws config```) 2. build the image locally. 3. tag the image using the registry domain, image name, and tag: ```docker tag my-app:latest <registry_url>/my-app:latest```. 4. push to remote: ```docker push <registry_url>/my-app:latest```
 - Deploying the application in the server: 1. login to remote repo account using ```docker login```. 2. configure where the image resides on the remote server in order for the appropriate service to be able to pull it.
 - Volumes: there are 3 types of docker volumes: 1. specifying a directory which is available on the host machine and connecting it to a path in the container. 2. anonymous volumes. 3. named volumes (this way docker is handling the storage on our host): ```<volume-name>:<path-in-container>```. Windows: **C:\ProgramData\docker\volumes** Linux/Mac: **/var/lib/docker/volumes**
-- When running for example a Nexus container, it already creates a nexus user for us and runs nexus with this user out of the box, so we don't need to take care of these aspects
+- When running for example a Nexus container, it already creates a nexus user for us and runs nexus with this user out of the box, so we don't need to take care of these aspects. This is not the case with every image, and we have to verify that the app is ran by non-root user
 - ```docker inspect <volume name>``` - details about the volumes and it's physical location on the server
+- Best practices: 1. Don't use base images for your Dockerfile. 2. Use specific versions of the images. 3. Use light base images. 4. Optimize caching image layers, by copying the requirements file of the project and running install and only then copying all of the rest of the code. This way - if nothing changed for the installation and only the code was modified - then the installation layer is cached. 5. Use .docker-ignore file for excluding files which don't need to be transfered to the container. 6. Scan your images for vulnerabilities with ```docker scan <image-name>```. 7. Use multi-stage build for getting rid of unnecessary artifacts and build tools in your final image. This is done by specifying copy artifacts from the previous build. example:
+```Docker
+# stage 1
+FROM maven AS build
+WORKDIR /app
+COPY myapp /app
+RUN mvn package
+
+# stage 2
+FROM tomcat
+COPY --from=build /app/target/file.war /usr/local/tomcat/web/file.war
+```
+- If we need the host's docker to be available on our container we can run the container with volumes to mount the docker directories into our container:
+```bash
+docker run -p 8080:8080 -p 50000:50000 -d -v jenkins_home:/var/jenkins_home -v /var/run/docker.sock:/var/run/docker.sock -v $(which docker):/usr/bin/docker jenkins/jenkins:lts
+```
+- Note that every time that docker is restarted, we need to change the permission to ```/var/run/docker.sock``` file to enable jenkins user inside the container to be able to read and write to it
+
+- If we want to push an image to an insecure private repo we need to add the ip,port in ```/etc/docker/daemon.json``` file and restart docker
+
+---
+
+## Build Automation & CI/CD (Jenkins)
+- We need to expose 2 ports when starting jekins container - 8080 and 50000 for cluster communication
+- For testing and building our applications we need for example npm, maven, and such in our jenkins. We can install as plugins (and then build tools in the UI) or directly on the jenkin's server. The main difference will be in the flexibility
+- When creating jenkins job which fetches code from git, it will be stored under workspace folder of that build
+- Build and push to container repo using credentials secret as variables:
+```Dockerfile
+docker build -t <repo_user>/java-maven-app:jma-1.0.0 .
+echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin
+docker push <repo_user>/java-maven-app:jma-1.0.0
+```
 
 ---
