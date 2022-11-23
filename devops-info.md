@@ -166,5 +166,86 @@ docker build -t <repo_user>/java-maven-app:jma-1.0.0 .
 echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin
 docker push <repo_user>/java-maven-app:jma-1.0.0
 ```
+- Environment variables which are available for use in our pipelines can be shown by accessing the jenkins url with ```<jenkins-url>/env-vars.html```
+- We need to explicitly add the build tools that we need in the pipeline, using ```tools``` attribute
+- Replay option lets us rerun the build with changes to the Jenkinsfile and groovy scripts without changing our source code
+- Jenkinsfile example:
+```jenkins
+def gv
 
+pipeline {
+    agent any
+
+    parameters {
+        choice(name: 'VERSION', choices: ['1.0.0', '1.1.0', '1.2.0'], description: '')
+        booleanParam(name: 'executeTests', defaultValue: true, description: '')
+    }
+
+    tools {
+        maven 'maven-3.6'
+    }
+
+    stages {
+        stage("init") {
+            steps {
+                script {
+                    gv = load "script.groovy"
+                }
+            }
+        }
+        stage("build") {
+
+            steps {
+                script {
+                    gv.buildJar()
+                }
+            }
+        }
+        stage("test") {
+
+            when {
+                expression {
+                    params.executeTests
+                }
+            }
+
+            steps {
+                echo 'testing the app'
+            }
+        }
+        stage("deploy") {
+
+            input {
+                message "Select the environment to deploy to"
+                ok "Done"
+                parameters {
+                    choice(name: 'ENV', choices: ['dev', 'staging', 'prod'], description: '')
+                }
+            }
+
+            steps {
+                echo "deploying the app to environment: ${ENV}"
+                echo "deploying version ${params.VERSION}"
+                // withCredentials([
+                //     usernamePassword(credentials: 'dockerhub-credentials', usernameVariable: USER, passwordVariable: PASSWD)
+                // ]) {
+                //     sh "some script ${USER} ${PASSWD}"
+                // }
+            }
+        }
+    }
+    post {
+        always {
+            echo 'end of pipeline'
+        }
+        failure {
+            echo 'status: FAILURE'
+        }
+        success {
+            echo 'status: SUCCESS'
+        }
+    }
+}
+```
+- 
 ---
