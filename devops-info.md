@@ -247,5 +247,15 @@ pipeline {
     }
 }
 ```
-- 
+- Multibranch pipeline in jenkins will scan all of the matching branches and search for Jenkinsfile. If none is found - the branch is skipped. Then we can define conditions in the jenkinsfile, defining what needs to be done for each branch using the predifined BRANCH_NAME parameter
+- There are 3 levels of credentials - System which will be only used by Jenkins itself, Global which is visible in all jobs, and credentials created in Multibranch pipelines which will be available only for these pipelines
+- Jenkins shared library will allow us to share pieces of code across some jobs in jenkins so we won't repeat stuff and can make mistakes. We will create a groovy project and in it's ```var``` dir we will have all of our shared functions. This will reside in SCM tool like gitlab and we will add it to our jenkins using the ```Global Pipeline Libraries``` in manage jenkins
+- In order to enable Github/Gitlab webhooks for SCM pooling we need to provide an API token to Jenkins and configure in them the jenkins integration in order to notify when a change has happend in our project. In order to use the multibranch pipeline with webhooks we'll need to install a plugin
+- Versioning: We can use build tools in order to make our app versioning incremental, for example in mvn project: 
+```
+mvn build-helper:parse-version versions:set -DnewVersion=${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.nextIncrementalVersion} versions:commit
+```
+This command will increment the patch/incremental version of the app
+- After the increment, we need to push the file which has the version number to git. We will do this as part of the build's stages, but we will need to exclude the author jenkins to allow triggering of another pipeline when pushing this change. This will be done using the ```Ignore Committer Strategy``` plugin in jenkins
+
 ---
