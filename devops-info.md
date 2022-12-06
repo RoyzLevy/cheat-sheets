@@ -154,6 +154,7 @@ docker run -p 8080:8080 -p 50000:50000 -d -v jenkins_home:/var/jenkins_home -v /
 
 - If we want to push an image to an insecure private repo we need to add the ip,port in ```/etc/docker/daemon.json``` file and restart docker
 
+- Linux users needs to be in the docker group in order to execute docker commands without sudo.
 ---
 
 ## Build Automation & CI/CD (Jenkins)
@@ -257,5 +258,32 @@ mvn build-helper:parse-version versions:set -DnewVersion=${parsedVersion.majorVe
 ```
 This command will increment the patch/incremental version of the app
 - After the increment, we need to push the file which has the version number to git. We will do this as part of the build's stages, but we will need to exclude the author jenkins to allow triggering of another pipeline when pushing this change. This will be done using the ```Ignore Committer Strategy``` plugin in jenkins
+- Jenkins can deploy to a server by connecting via ssh to the remote server and running docker run command on it:
+```groovy
+def dockerCommand = 'docker run -d -p 3080:3080 royzlevyz/demo-app:1.0'
+sshagent(['aws-key']) {
+    sh "ssh -o StrictHostKeyChecking=no ec2-user@35.157.36.176 ${dockerCommand}"
+}
+```
+Or with docker-compose:
+```groovy
+def dockerComposeCommand = "docker-compose -f docker-compose.yaml up --detach"
+sshagent(['aws-key']) {
+    sh "scp docker-compose.yaml ec2-user@35.157.36.176:/home/ec2-user"
+    sh "ssh -o StrictHostKeyChecking=no ec2-user@35.157.36.176 ${dockerComposeCommand}"
+}
+```
+
+---
+
+## AWS
+
+- IAM roles will be composed of access policies and will be assigned to services in order to be able to communicate to each other
+- VPC is per-region and our components reside in this VPC. The default VPC will be assigned private IP addresses that could be changed if we need
+- Subnet is per-availability zone
+- Firewall rules will distinguish between private and public subnets - If all traffic from outside of the VPC is not allowed, then this will be a private subnet. In general we will have a private subnet for our DB and such, and public subnet for our client-facing app
+- Our services will get a private IP for inside communication and also a public IP for outside of the VPC communication.
+- We'll also need an internet gateway for getting access to the internet (our router)
+- We can configure security on subnet level - using NACL or instance level - using Security Groups
 
 ---
