@@ -301,5 +301,34 @@ sshagent(['aws-key']) {
     - In order to allow user to change it's own password we need to define change password policy and attach it to it's group also
     - Create user programmatic access: ```aws iam create-access-key --user-name my-user-cli-test```
     
+---
+
+## Kubernetes
+- Basic components:
+    - Node == server (virtual or physical)
+    - Pod == abstraction layer above a container. Each pod gets a private IP address
+    - Service == static IP address for pod communication and load balancer, so if a pod dies and the new pod gets a new IP address, the communication between pods won't be affected
+    - Ingress == forwards outbound requests to the Service components
+    - ConfigMap == external config for the application, so we won't need to store configs inside of the container itself and re-build each time it changes
+    - Secret == same as ConfigMap, but secure (used for passwords)
+    - Volume == storage on the local node or remote storage
+    - Deployment == Abstracts pods and acts as a blueprint for the application pods (how many replicas to run, etc...)
+    - StatefulSet == Abstracts pods which are STATEFUL, like databases
+
+- 3 processes that needs to run in worker nodes:
+    - Container runtime (containerd/dockerruntime)
+    - Kubelet - interacts with the node itself and starts pods with container inside
+    - Kubeproxy - forwards requests between Services in an intellegent way
+
+- 4 processes that needs to run in master nodes:
+    - API server - gets requests for updates and queries to the cluster
+    - Scheduler - get requests from API server and intellegently assigns pod creations to worker nodes
+    - Controller Manager - detects cluster state changes (crushes of pods for example) and then requests scheduler to schedule pods
+    - etcd - key-value store that acts as the brain of the cluster. Stores the state of the cluster
+
+- The worker nodes need more resources than the master nodes
+- In order to add a master/worker node - get new server, install the needed processes on it, add it to the k8s cluster
+
+
 
 ---
