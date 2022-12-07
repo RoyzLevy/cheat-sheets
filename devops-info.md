@@ -285,5 +285,21 @@ sshagent(['aws-key']) {
 - Our services will get a private IP for inside communication and also a public IP for outside of the VPC communication.
 - We'll also need an internet gateway for getting access to the internet (our router)
 - We can configure security on subnet level - using NACL or instance level - using Security Groups
+- AWS CLI - first we need to install and configure ```aws configure``` with our wanted user's programmatic access. The info will be stored in ```~/.aws/credentials```, ```~/.aws/config```
+- EC2 Examples:
+    - Create SG: ```aws ec2 create-security-group --group-name my-sg --description "my sg for testing" --vpc-id <vpc-id>```
+    - Add firewall rule to SG: ```aws ec2 authorize-security-group-ingress --group-id <sg-id> --protocol tcp --port <port> --cidr <ip-range>```
+    - Create key pair for an ec2 instance: ```aws ec2 create-key-pair --key-name my-key-pair-cli --query 'KeyMaterial' --output text > my-key-pair-cli.pem```
+    - Create EC2 instance: ```aws ec2 run-instances --image-id <ami-id> --count 1 --instance-type t2.micro --key-name my-key-pair-cli --security-group-ids <sg-id> --subnet-id <subnet-id>```
+    - Query instances: ```aws ec2 describe-instances --filters "Name=instance-type,Values=t2.micro" --query "Reservations[].Instances[].InstanceId"```
+- IAM Examples:
+    - Create group: ```aws iam create-group --group-name my-group-cli-test```
+    - Create user: ```aws iam create-user --user-name my-user-cli-test```
+    - Assign user to group: ```aws iam add-user-to-group --user-name my-user-cli-test --group-name my-group-cli-test```
+    - Attach policies to group: ```aws iam attach-group-policy --group-name my-group-cli-test --policy-arn arn:aws:iam::aws:policy/AmazonEC2FullAccess```
+    - Create user UI access: ```aws iam create-login-profile --user-name my-user-cli-test --password <password> --password-reset-required```
+    - In order to allow user to change it's own password we need to define change password policy and attach it to it's group also
+    - Create user programmatic access: ```aws iam create-access-key --user-name my-user-cli-test```
+    
 
 ---
