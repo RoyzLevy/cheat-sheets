@@ -314,6 +314,8 @@ sshagent(['aws-key']) {
     - Volume == storage on the local node or remote storage
     - Deployment == Abstracts pods and acts as a blueprint for the application pods (how many replicas to run, etc...)
     - StatefulSet == Abstracts pods which are STATEFUL, like databases
+    - Namespace == provide a way to group our created resources so we can get a better overview of them when needed. This way even if we accidentally create a deployment with the same name as the existing one, it won't be applied to the same one (can happen with multiple teams or multiple deployments). We can also manipulate access to namespaces and limit their usage of system resources (RAM, CPU)
+
 
 - 3 processes that needs to run in worker nodes:
     - Container runtime (containerd/dockerruntime)
@@ -329,6 +331,93 @@ sshagent(['aws-key']) {
 - The worker nodes need more resources than the master nodes
 - In order to add a master/worker node - get new server, install the needed processes on it, add it to the k8s cluster
 
+- Minikube - the master and worker nodes are running on separate nodes. But in Minikube they run on the same node (host)
+- Kubectl - CLI for k8s - interacts with the API Server component
+- Kubectl commands:
+    - ```kubectl get nodes/pod/services```
+    - ```kubectl create deployment <deployment-name> --image=<image>```
+    - ```kubectl edit deployment <deployment-name>```
+    - ```kubectl apply -f <config-file>```
+
+- Deployment > Replicaset > Pod > Container. We just work with the deployment layer
+- Deployment config file example:
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-deployment
+  labels:
+    app: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo
+          ports:
+            - containerPort: 27017
+          env:
+          # env variables from Secret component
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom: 
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: mongo-root-username
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: mongo-root-password
+```
+- Secret config file example:
+```yaml
+apiVersion: apps/v1
+kind: Secret
+metadata:
+  name: mongodb-secret
+type: Opaque
+data:
+  # base64 encoded secrets
+  mongo-root-username: dXNlcm5hbWU=
+  mongo-root-password: cGFzc3dvcmQ=
+```
+- Service config file example:
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+spec:
+  selector:
+    app: mongodb
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017
+```
+- If we want to see which IP is listening for the service we can describe the service
+- The config files has 3 sections: metadata, specs and status(automatically added by k8s and compared each time to the defined specs). Etcd holds the information
+
+- **K8s Namespaces**:
+    - Namespace can be defined either from kubectl or inside the resource config file itself under metadata
+    - Used for differentiating between resources / teams / environments sharing the same resources. Also for limiting resources used by each namespace
+    - We can work better with namespaces using the ```kubens``` tool by installing ```kubectx``` for multi-cluster works
 
 
+- **K8s Services**:
+    - Each node in the cluster will get a range of IP addresses and each pod gets assigned an IP address of its own, and it does not make sense to access these IP's directly since they are reassigned each time the pod dies. We'll access their services instead, which will also act as a load balancer for the pods.
+    - The service identifies it's pod endpoints by using "selector" in their config files when creating them. We can check the current endpoints using ```kubectl get endpoints```
+    
+    - Service types:
+        - ClusterIP Service == default service type
+        - Headless Service ==
+        - NodePort Service ==
+        - LoadBalancer Service
 ---
