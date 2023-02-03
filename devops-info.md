@@ -69,6 +69,7 @@ DevOps-related info
 - export <var>=<val> for current session
 - Edit ./bashrc and run ‘source .bashrc’ for all sessions of the user
 - Edit /etc/environment for system-wide configs
+- We can use ```envsubst``` in order to replace environment placeholders in a file based on the context's env variables
 
 ---
 
@@ -417,7 +418,105 @@ spec:
     
     - Service types:
         - ClusterIP Service == default service type
-        - Headless Service ==
-        - NodePort Service ==
+        - Headless Service
+        - NodePort Service
         - LoadBalancer Service
+    
 ---
+
+- Connection to the applications from outside the cluster will be done either with Ingress (routes host path as defined in the user request. no IP port opens. Requires ingress controller to be installed in the cluster) or LoadBalancer Service (opens an IP and port for outside requests)
+
+- We can configure a tls certificate in our Ingress configuration file by referencing the tls certificate secret in the same namespace
+
+
+- **K8s Volumes**:
+    - When a pod restarts all of the data is lost, so we need volumes in order to be able to persist data
+    - Persistent Volumes (PV) are not namespaced
+    - Persistent Volume Claims (PVC) are namespaced
+    - local volume is not safe, because when the cluster crushes it will also be deleted. Better is remote storage as our PV
+    - the config files for doing that are: Deployment -> Persistent Volume Claim -> Persistent Volume
+    - The volume is attached to the pod and from there we can have the containers mount it
+    - We can provide volumes either manually, creating static PV's or use Storage Class (SC) for dynamically allocating PV when a PVC claims it
+    - When we use config files for our apps we can mount config map as volume (using files instead of key-value pairs in configmap/secret)
+
+- **K8s Stateful sets**:
+    - Stateful applications are those who keeps data to store their state
+    - They are deployed using **StatefulSet** instead of **Deployment**
+    - The data is replicated so if one pod dies nothing will be affected, but if all of them die the data is lost, so we still need PV in order to have persistency
+
+- **Cloud Managed K8s**:
+    - Instead of creating master and worker nodes by ourselves in the cloud, with the managed services - the master nodes are managed by the cloud provider and we just need to deal with the worker nodes
+    - We can get the credentials file for our provisioned k8s cluster and ```export KUBECONFIG=<credentials-file>``` then control using kubectl CLI
+
+- **K8s Helm**:
+    - Helm is the package manager for k8s
+    - Helm charts are bundles of yaml files for an application. Using them we can save time configuring commonly-used apps
+    - We can use helm charts for each of our environments and it's needs and then use them to redeploy the same application in different environments
+    - values.yaml file can be used for templating other yaml files
+    - helm example: ```helm install mongodb --values test-mongodb.yaml bitnami/mongodb``` - we are overriding default values using the test-mongodb.yaml file and the helm chart which we are using is bitnami/mongodb
+
+- **In order to allow the pods to connect to a docker registry which we are using to store our app images, we need to create a k8s secret in either way: 1. do a manual docker login and use the auto-generated .docker/config.json file 2. create a secret of dockerregistry type with the credentials**
+
+- K8s Operators are used for stateful applications where an intervention is needed throughout the control loop of k8s, and are created per app (mongodb operator, elastic operator...)
+
+- Creation of Prometheus cluster using Prometheus operator helm chart:
+    #### create Minikube cluster
+        minikube start --cpus 4 --memory 8192 --vm-driver hyperkit
+
+    #### install Prometheus-operator
+    ###### add repos
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+        helm repo add stable https://kubernetes-charts.storage.googleapis.com/
+        helm repo update
+
+    ###### install chart
+        helm install prometheus prometheus-community/kube-prometheus-stack
+
+    ###### install chart with fixed version    
+        helm install prometheus prometheus-community/kube-prometheus-stack --version "9.4.1"
+
+    ###### Link to chart
+    [https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack]
+
+    After creation of the cluster, we need to add ingress in order to be able to access graphana/prometheus ui from outside the cluster
+
+- **K8s Authentication & Authorization**
+    - RBAC (Role Based Access Control) defines resources that users can acces in each namespace in the k8s cluster
+    - CR (Cluster Role) defines resources and permissions cluster-wide
+    - SA (Service Account) is used for application user permissions
+    - RB (Role Binding) allows us to attach a role to user/group/SA
+    - We get our users and groups information using an outside source - static file/LDAP/certificates
+
+- There are 3 ways that microservices communicate with each other: API calls / Message broker / Service mesh
+
+- Everytime we need to deploy a microservice application, we need to know:
+    - Which microservices we are deploying
+    - How do they connect to each other
+    - 3rd party services / databases
+    - Which service is the entrypoint that will get the users requests (FE service)
+    - Image names
+    - Env variables
+    - Ports for each microservice
+    - Healthchecks for the microservice
+    - How much resources are the microservices consuming? (or if there's a specific one that consumes alot)
+    - How many teams are developing the microservices (in order to decide about namespaces)
+
+- **Liveness Probe** allows k8s to restart pod even when the application inside the pod crushes, and not only if the pod itself crushes
+- **Readiness Probe** allows k8s to check if the application inside the pod's container is ready when it's first started in the cluster
+- Both can be used with a command to execute some health check / checking if a port is open / health check using a url /status path
+
+- We can use the **resources** stanza in order to request a minimum of system resources and also limit the usage of it
+
+- Helm charts can be created per microservice or if the microservices have similar configs, we can make a blueprint for all of them
+- Instead of using ```helm install -f <values-file> <release-name> <chart directory>``` for a chart each time with a different values file as an input, we can use **Helmfile** which will state all of the releases we need in the cluster and deploy them with ```helmfile sync```/```helmfile destroy```
+
+---
+
+- **K8s EKS**:
+    - In order for us to be able to create a cluster we'll create an EKS role with the default permissions, create VPC for the k8s worker nodes networking (as the master nodes that are managed by AWS will reside on another VPC out of our account) using CloudFormation (or Terraform for example).
+    - After that we will create the eks cluster, and then run ```aws eks update-kubeconfig --name <eks-cluster-name>``` in order to create a connection between our kubectl and the eks managed cluster.
+    - We need to apply k8s autoscaler in the cluster so it will connect to the AWS ASG of the node group that we've created: ```kubectl apply -f https://raw.githubusercontent.com/kubernetes/autoscaler/master/cluster-autoscaler/cloudprovider/aws/examples/cluster-autoscaler-autodiscover.yaml```. It will be run as a pod in our cluster and will autoscale the worker nodes as needed, so the AWS ASG desired capacity will be dynamic based on resources usage
+    - Fargate only allows one pod per instance, as opposed to working with NodeGroups
+    - Fargate can control which labels in which namespace will be provisioned by it, and this way we can select deployment types for the resources
+    - For provisioning EKS cluster we can do 1. In the UI 2. AWS CLI 3. eksctl 4. Terraform. eksctl lets us create an eks cluster very easily as it uses a set of defaults for IAM roles, VPC, etc.. and we can also use a yaml file and pass it to the eksctl command
+    - When deploying an image from a docker repo, we will need to create a secret of type ```docker-registry``` in the cluster and then use it in the deployment file
